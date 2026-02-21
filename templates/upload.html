@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload File</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #138496;
+        }
+        .error {
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Files</h1>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        <form method="POST" enctype="multipart/form-data">
+            <label for="file">Select Excel File:</label>
+            <input type="file" id="file" name="file" accept=".xls,.xlsx" required>
+
+            <label for="image">Select Image (Optional):</label>
+            <input type="file" id="image" name="image" accept=".jpg,.jpeg,.png">
+
+            <button type="submit">Upload</button>
+        </form>
+        <p><a href="/logout">Logout</a></p>
+    </div>
+</body>
+</html>

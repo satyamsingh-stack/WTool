@@ -1,0 +1,12 @@
+/venv
+/.idea
+/dist
+/__pycache
+*.pyc
+__pycache__/
+instance/
+.webassets-cache
+uploads/
+*.db
+*.sqlite3
+.env
