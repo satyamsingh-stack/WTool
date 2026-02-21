@@ -64,6 +64,13 @@ def login():
         if user.expiration_time and user.expiration_time < datetime.utcnow():
             return render_template('login.html', error='Your credentials have expired. Please contact the admin.')
         session['username'] = user.username
+        session['login_time'] = datetime.utcnow().isoformat()  # Store login time
+        # Store expiration time for the timer (only for non-admin users)
+        # Append 'Z' to indicate UTC timezone
+        if user.expiration_time and not user.is_admin:
+            session['expiration_time'] = user.expiration_time.isoformat() + 'Z'
+        else:
+            session['expiration_time'] = None
         if user.is_admin:
             return redirect(url_for('admin_dashboard'))
         return redirect(url_for('upload_file'))
@@ -104,8 +111,18 @@ def admin_dashboard():
     active_users = sum(1 for u in users if u.expiration_time and u.expiration_time > current_time)
     expired_users = total_users - active_users
     
+    user = User.query.filter_by(username=session['username']).first()
+    expiration_time = None
+    is_admin = False
+    if user:
+        is_admin = user.is_admin
+        if user.expiration_time and not user.is_admin:
+            # Append 'Z' to indicate UTC timezone
+            expiration_time = user.expiration_time.isoformat() + 'Z'
+    
     return render_template('admin.html', users=users, current_time=current_time, 
-                          total_users=total_users, active_users=active_users, expired_users=expired_users)
+                          total_users=total_users, active_users=active_users, expired_users=expired_users,
+                          login_time=session.get('login_time'), expiration_time=expiration_time, is_admin=is_admin)
 
 @app.route('/admin/delete/<int:user_id>')
 def delete_user(user_id):
@@ -123,6 +140,27 @@ def delete_user(user_id):
         flash('User deleted successfully!', 'success')
     
     return redirect(url_for('admin_dashboard'))
+
+@app.route('/api/expiration')
+def get_expiration_time():
+    if 'username' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    user = User.query.filter_by(username=session['username']).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if user.is_admin:
+        return jsonify({'expiration_time': None})
+    
+    if user.expiration_time:
+        # Append 'Z' to indicate UTC timezone
+        return jsonify({
+            'expiration_time': user.expiration_time.isoformat() + 'Z',
+            'is_expired': user.expiration_time < datetime.utcnow()
+        })
+    
+    return jsonify({'expiration_time': None})
 
 @app.route('/admin/update/<int:user_id>', methods=['POST'])
 def update_user(user_id):
@@ -182,7 +220,16 @@ def upload_file():
 
         return redirect(url_for('send_message'))
 
-    return render_template('upload.html')
+    user = User.query.filter_by(username=session['username']).first()
+    expiration_time = None
+    is_admin = False
+    if user:
+        is_admin = user.is_admin
+        if user.expiration_time and not user.is_admin:
+            # Append 'Z' to indicate UTC timezone
+            expiration_time = user.expiration_time.isoformat() + 'Z'
+    
+    return render_template('upload.html', login_time=session.get('login_time'), expiration_time=expiration_time, is_admin=is_admin)
 
 # Global variable to track message-sending state
 is_sending_messages = False
@@ -273,7 +320,16 @@ def send_message():
             is_sending_messages = False
             return render_template('send.html', error=f'Error: {str(e)}')
 
-    return render_template('send.html')
+    user = User.query.filter_by(username=session['username']).first()
+    expiration_time = None
+    is_admin = False
+    if user:
+        is_admin = user.is_admin
+        if user.expiration_time and not user.is_admin:
+            # Append 'Z' to indicate UTC timezone
+            expiration_time = user.expiration_time.isoformat() + 'Z'
+    
+    return render_template('send.html', login_time=session.get('login_time'), expiration_time=expiration_time, is_admin=is_admin)
 
 if __name__ == '__main__':
     app.run(debug=True)

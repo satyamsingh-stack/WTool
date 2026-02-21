@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload Files - WAT Bulk Messages</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -245,11 +246,44 @@
         .step.completed {
             background: #11998e;
         }
+        
+        .login-timer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(17, 153, 142, 0.1);
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            color: #11998e;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .login-timer i {
+            font-size: 18px;
+        }
+        
+        .login-timer span:last-child {
+            font-family: 'Courier New', monospace;
+            background: rgba(17, 153, 142, 0.2);
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="card">
+            {% if expiration_time and not is_admin %}
+            <div class="login-timer">
+                <i class="fas fa-hourglass-half"></i>
+                <span>Time Left: </span>
+                <span id="login-duration">--:--:--</span>
+            </div>
+            {% endif %}
+            
             <div class="step-indicator">
                 <div class="step completed"></div>
                 <div class="step active"></div>
@@ -297,5 +331,64 @@
             </div>
         </div>
     </div>
+    
+    {% if expiration_time and not is_admin %}
+    <script>
+        // Store the initial expiration time
+        let expirationTime = new Date('{{ expiration_time }}');
+        let timerInterval = null;
+        
+        // Function to fetch updated expiration time from server
+        async function fetchExpirationTime() {
+            try {
+                const response = await fetch('/api/expiration');
+                const data = await response.json();
+                
+                if (data.expiration_time) {
+                    expirationTime = new Date(data.expiration_time);
+                    
+                    // If expired, redirect to login
+                    if (data.is_expired) {
+                        window.location.href = '/?expired=true';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching expiration time:', error);
+            }
+        }
+        
+        function updateTimer() {
+            const now = new Date();
+            const diff = expirationTime - now;
+            
+            if (diff <= 0) {
+                document.getElementById('login-duration').textContent = 'Expired';
+                document.getElementById('login-duration').style.background = 'rgba(231, 76, 60, 0.3)';
+                return;
+            }
+            
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            let timeStr = '';
+            if (days > 0) timeStr += days + 'd ';
+            timeStr += String(hours).padStart(2, '0') + ':';
+            timeStr += String(minutes).padStart(2, '0') + ':';
+            timeStr += String(seconds).padStart(2, '0');
+            
+            document.getElementById('login-duration').textContent = timeStr;
+        }
+        
+        setInterval(updateTimer, 1000);
+        updateTimer();
+        
+        // Poll for updated expiration time every 10 seconds
+        setInterval(fetchExpirationTime, 10000);
+        fetchExpirationTime();
+    </script>
+    {% endif %}
+    
 </body>
 </html>

@@ -6,6 +6,7 @@
     <title>Admin Dashboard - WAT Bulk Messages</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -380,6 +381,8 @@
         
         .btn-danger {
             background: linear-gradient(135deg, #ff6b6b, #ee5253);
+            padding: 12px 20px;
+            font-size: 13px;
         }
         
         .btn-danger:hover {
@@ -538,6 +541,33 @@
             font-weight: 500;
         }
         
+        .login-timer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .login-timer i {
+            font-size: 18px;
+            color: #667eea;
+        }
+        
+        .login-timer span:last-child {
+            font-family: 'Courier New', monospace;
+            background: rgba(102, 126, 234, 0.3);
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+        
         .empty-state {
             text-align: center;
             padding: 50px;
@@ -573,6 +603,14 @@
                 Logout
             </a>
         </div>
+        
+        {% if expiration_time and not is_admin %}
+        <div class="login-timer">
+            <i class="fas fa-hourglass-half"></i>
+            <span>Time Left: </span>
+            <span id="login-duration">--:--:--</span>
+        </div>
+        {% endif %}
         
         <!-- Stats Row -->
         <div class="stats-row">
@@ -735,15 +773,15 @@
                                     <input type="number" name="days" placeholder="D" min="0" title="Days">
                                     <input type="number" name="hours" placeholder="H" min="0" max="23" title="Hours">
                                     <input type="number" name="minutes" placeholder="M" min="0" max="59" title="Minutes">
-                                    <button type="submit" class="btn-update">
+                                    <button type="submit" class="btn-update" title="Update Time">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    <a href="{{ url_for('delete_user', user_id=user.id) }}" onclick="return confirm('Are you sure you want to delete this user?')" style="text-decoration: none;">
+                                        <button type="button" class="btn-danger" title="Delete User">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </a>
                                 </form>
-                                <a href="{{ url_for('delete_user', user_id=user.id) }}" onclick="return confirm('Are you sure you want to delete this user?')" style="text-decoration: none;">
-                                    <button type="button" class="btn-danger">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </a>
                                 {% endif %}
                             </td>
                         </tr>
@@ -759,5 +797,39 @@
             {% endif %}
         </div>
     </div>
+    
+    {% if expiration_time and not is_admin %}
+    <script>
+        const expirationTime = new Date('{{ expiration_time }}');
+        
+        function updateTimer() {
+            const now = new Date();
+            const diff = expirationTime - now;
+            
+            if (diff <= 0) {
+                document.getElementById('login-duration').textContent = 'Expired';
+                document.getElementById('login-duration').style.background = 'rgba(231, 76, 60, 0.3)';
+                return;
+            }
+            
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            let timeStr = '';
+            if (days > 0) timeStr += days + 'd ';
+            timeStr += String(hours).padStart(2, '0') + ':';
+            timeStr += String(minutes).padStart(2, '0') + ':';
+            timeStr += String(seconds).padStart(2, '0');
+            
+            document.getElementById('login-duration').textContent = timeStr;
+        }
+        
+        setInterval(updateTimer, 1000);
+        updateTimer();
+    </script>
+    {% endif %}
+    
 </body>
 </html>
