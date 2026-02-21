@@ -97,7 +97,15 @@ def admin_dashboard():
         flash('User created successfully!', 'success')
 
     users = User.query.all()
-    return render_template('admin.html', users=users, current_time=datetime.utcnow())
+    current_time = datetime.utcnow()
+    
+    # Calculate stats
+    total_users = len(users)
+    active_users = sum(1 for u in users if u.expiration_time and u.expiration_time > current_time)
+    expired_users = total_users - active_users
+    
+    return render_template('admin.html', users=users, current_time=current_time, 
+                          total_users=total_users, active_users=active_users, expired_users=expired_users)
 
 @app.route('/admin/delete/<int:user_id>')
 def delete_user(user_id):

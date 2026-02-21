@@ -3,186 +3,761 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Admin Dashboard - WAT Bulk Messages</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
+        * {
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            box-sizing: border-box;
         }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* Floating shapes */
+        .floating-shapes {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+        
+        .shape {
+            position: absolute;
+            border-radius: 50%;
+            animation: float 15s infinite ease-in-out;
+            opacity: 0.4;
+        }
+        
+        .shape:nth-child(1) {
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            top: -100px;
+            left: -100px;
+            animation-delay: 0s;
+        }
+        
+        .shape:nth-child(2) {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(45deg, #48dbfb, #1dd1a1);
+            top: 50%;
+            right: -50px;
+            animation-delay: 2s;
+        }
+        
+        .shape:nth-child(3) {
+            width: 150px;
+            height: 150px;
+            background: linear-gradient(45deg, #a55eea, #ff6b6b);
+            bottom: 10%;
+            left: 10%;
+            animation-delay: 4s;
+        }
+        
+        .shape:nth-child(4) {
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(45deg, #feca57, #ff9ff3);
+            bottom: -80px;
+            right: 20%;
+            animation-delay: 1s;
+        }
+        
+        @keyframes float {
+            0%, 100% { 
+                transform: translateY(0) rotate(0deg); 
+            }
+            25% { 
+                transform: translateY(20px) rotate(5deg); 
+            }
+            50% { 
+                transform: translateY(0) rotate(0deg); 
+            }
+            75% { 
+                transform: translateY(-20px) rotate(-5deg); 
+            }
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-40px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(40px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
         }
-        h1, h2 {
-            color: #333;
+        
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            animation: slideUp 0.6s ease-out;
         }
-        .form-container {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
+        
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .header-icon {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            animation: pulse 3s infinite ease-in-out;
+        }
+        
+        h1 {
+            color: white;
+            font-size: 32px;
+            font-weight: 700;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .header-subtitle {
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .logout-link {
+            color: white;
+            text-decoration: none;
+            padding: 14px 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logout-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        /* Stats Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
             margin-bottom: 30px;
         }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: slideUp 0.6s ease-out;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-icon.users { background: linear-gradient(135deg, #48dbfb, #0abde3); }
+        .stat-icon.active { background: linear-gradient(135deg, #1dd1a1, #10ac84); }
+        .stat-icon.expired { background: linear-gradient(135deg, #ff6b6b, #ee5253); }
+        
+        .stat-value {
+            color: white;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .stat-label {
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            margin-top: 5px;
+        }
+        
+        /* Flash Message */
+        .flash-message {
+            padding: 18px 25px;
+            margin-bottom: 30px;
+            border-radius: 16px;
+            font-size: 15px;
+            animation: slideUp 0.5s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .flash-success {
+            background: linear-gradient(135deg, rgba(39, 174, 96, 0.2), rgba(39, 174, 96, 0.1));
+            color: #2ecc71;
+            border: 1px solid rgba(39, 174, 96, 0.3);
+        }
+        
+        /* Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 35px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+            animation: slideUp 0.6s ease-out;
+        }
+        
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+        
+        h2 {
+            color: #333;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        h2 .icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+        
+        /* Form */
+        .form-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        
+        .form-group {
+            flex: 1;
+            min-width: 140px;
+        }
+        
         label {
-            display: inline-block;
-            margin: 10px 10px 5px 0;
+            display: block;
+            color: #555;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        input, button {
-            padding: 10px;
-            margin: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+        
+        label i {
+            color: #667eea;
         }
+        
+        input {
+            width: 100%;
+            padding: 16px 18px;
+            border: 2px solid #e8e8e8;
+            border-radius: 14px;
+            font-size: 14px;
+            font-family: 'Poppins', sans-serif;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        input::placeholder {
+            color: #aaa;
+        }
+        
         button {
-            background-color: #28a745;
+            padding: 16px 35px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
             cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
         button:hover {
-            background-color: #218838;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
         }
+        
+        button:hover::before {
+            left: 100%;
+        }
+        
         .btn-danger {
-            background-color: #dc3545;
+            background: linear-gradient(135deg, #ff6b6b, #ee5253);
         }
+        
         .btn-danger:hover {
-            background-color: #c82333;
+            box-shadow: 0 15px 40px rgba(255, 107, 107, 0.4);
         }
+        
         .btn-update {
-            background-color: #17a2b8;
+            background: linear-gradient(135deg, #feca57, #ff9f43);
+            color: #333;
+            padding: 12px 20px;
+            font-size: 13px;
         }
+        
         .btn-update:hover {
-            background-color: #138496;
+            box-shadow: 0 15px 40px rgba(254, 202, 87, 0.4);
         }
+        
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 16px;
+        }
+        
         table {
             width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+            border-collapse: separate;
+            border-spacing: 0;
         }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
+        
         th {
-            background-color: #007BFF;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            padding: 18px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
         }
-        tr:hover {
-            background-color: #f5f5f5;
+        
+        th:first-child {
+            border-radius: 14px 0 0 14px;
         }
+        
+        th:last-child {
+            border-radius: 0 14px 14px 0;
+        }
+        
+        td {
+            padding: 18px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+            color: #444;
+            background: white;
+            transition: all 0.3s ease;
+        }
+        
+        tr:first-child td:first-child { border-radius: 14px 0 0 0; }
+        tr:first-child td:last-child { border-radius: 0 14px 0 0; }
+        tr:last-child td:first-child { border-radius: 0 0 0 14px; }
+        tr:last-child td:last-child { border-radius: 0 0 14px 0; }
+        
+        tr:hover td {
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
         .status-active {
-            color: #28a745;
-            font-weight: bold;
+            color: #10ac84;
+            background: rgba(16, 172, 132, 0.1);
         }
+        
+        .status-active::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #10ac84;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
         .status-expired {
-            color: #dc3545;
-            font-weight: bold;
+            color: #ee5253;
+            background: rgba(238, 82, 83, 0.1);
         }
-        .flash-message {
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 4px;
+        
+        .status-expired::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #ee5253;
+            border-radius: 50%;
         }
-        .flash-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+        
+        .admin-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
         }
-        .logout-link {
-            float: right;
-            color: #007BFF;
-            text-decoration: none;
+        
+        .admin-badge.yes {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .admin-badge.no {
+            color: #888;
+            background: rgba(136, 136, 136, 0.1);
+        }
+        
+        .action-form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .action-form input {
+            width: 65px;
+            padding: 10px 12px;
+            font-size: 13px;
+            text-align: center;
+        }
+        
+        .no-expiration {
+            color: #888;
+            font-style: italic;
+            font-size: 13px;
+        }
+        
+        .user-count {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            margin-left: 10px;
+            font-weight: 500;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 50px;
+            color: #888;
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
         }
     </style>
 </head>
 <body>
+    <div class="floating-shapes">
+        <div class="shape"></div>
+        <div class="shape"></div>
+        <div class="shape"></div>
+        <div class="shape"></div>
+    </div>
+    
     <div class="container">
-        <a href="/logout" class="logout-link">Logout</a>
-        <h1>Admin Dashboard</h1>
+        <div class="header">
+            <div class="header-title">
+                <div class="header-icon">⚙️</div>
+                <div>
+                    <h1>Admin Dashboard</h1>
+                    <p class="header-subtitle">Manage users and monitor system</p>
+                </div>
+            </div>
+            <a href="/logout" class="logout-link">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </a>
+        </div>
+        
+        <!-- Stats Row -->
+        <div class="stats-row">
+            {% set total_users = total_users %}
+            {% set active_users = active_users %}
+            {% set expired_users = expired_users %}
+            
+            <div class="stat-card">
+                <div class="stat-icon users">
+                    <i class="fas fa-users" style="color: white;"></i>
+                </div>
+                <div class="stat-value">{{ total_users }}</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon active">
+                    <i class="fas fa-check-circle" style="color: white;"></i>
+                </div>
+                <div class="stat-value">{{ active_users }}</div>
+                <div class="stat-label">Active Users</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon expired">
+                    <i class="fas fa-times-circle" style="color: white;"></i>
+                </div>
+                <div class="stat-value">{{ expired_users }}</div>
+                <div class="stat-label">Expired Users</div>
+            </div>
+        </div>
         
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 {% for message in messages %}
-                    <div class="flash-message flash-success">{{ message }}</div>
+                    <div class="flash-message flash-success">
+                        <i class="fas fa-check-circle"></i>
+                        {{ message }}
+                    </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
         
-        <div class="form-container">
-            <h2>Create New User</h2>
+        <div class="card">
+            <h2>
+                <span class="icon"><i class="fas fa-user-plus"></i></span>
+                Create New User
+            </h2>
             <form method="POST">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
-                
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-                
-                <label for="days">Duration:</label>
-                <input type="number" id="days" name="days" min="0" value="7" placeholder="Days" style="width: 60px;" required>
-                <input type="number" id="hours" name="hours" min="0" max="23" value="0" placeholder="Hours" style="width: 60px;">
-                <input type="number" id="minutes" name="minutes" min="0" max="59" value="0" placeholder="Minutes" style="width: 60px;">
-                
-                <button type="submit">Create User</button>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="username">
+                            <i class="fas fa-user"></i>
+                            Username
+                        </label>
+                        <input type="text" id="username" name="username" placeholder="Enter username" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">
+                            <i class="fas fa-lock"></i>
+                            Password
+                        </label>
+                        <input type="password" id="password" name="password" placeholder="Enter password" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="days">
+                            <i class="fas fa-calendar-day"></i>
+                            Days
+                        </label>
+                        <input type="number" id="days" name="days" min="0" value="7" placeholder="Days">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hours">
+                            <i class="fas fa-clock"></i>
+                            Hours
+                        </label>
+                        <input type="number" id="hours" name="hours" min="0" max="23" value="0" placeholder="Hours">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="minutes">
+                            <i class="fas fa-minute-half"></i>
+                            Minutes
+                        </label>
+                        <input type="number" id="minutes" name="minutes" min="0" max="59" value="0" placeholder="Minutes">
+                    </div>
+                    
+                    <button type="submit">
+                        <i class="fas fa-plus"></i>
+                        Create User
+                    </button>
+                </div>
             </form>
         </div>
 
-        <h2>Existing Users</h2>
-        <table>
-            <tr>
-                <th>Username</th>
-                <th>Status</th>
-                <th>Expires In</th>
-                <th>Is Admin</th>
-                <th>Actions</th>
-            </tr>
-            {% for user in users %}
-            <tr>
-                <td>{{ user.username }}</td>
-                <td>
-                    {% if user.expiration_time and user.expiration_time < current_time %}
-                        <span class="status-expired">Expired</span>
-                    {% else %}
-                        <span class="status-active">Active</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if user.expiration_time %}
-                        {% set time_remaining = user.expiration_time - current_time %}
-                        {% if time_remaining.total_seconds() > 0 %}
-                            {% set days = time_remaining.days %}
-                            {% set hours = (time_remaining.seconds // 3600) % 24 %}
-                            {% set minutes = (time_remaining.seconds % 3600) // 60 %}
-                            {% if days > 0 %}{{ days }}d {% endif %}{% if hours > 0 %}{{ hours }}h {% endif %}{{ minutes }}m
-                        {% else %}
-                            Expired
-                        {% endif %}
-                    {% else %}
-                        No Expiration
-                    {% endif %}
-                </td>
-                <td>{{ 'Yes' if user.is_admin else 'No' }}</td>
-                <td>
-                    {% if not user.is_admin %}
-                    <form method="POST" action="{{ url_for('update_user', user_id=user.id) }}" style="display:inline;">
-                        <input type="number" name="days" placeholder="Days" min="0" style="width: 50px;">
-                        <input type="number" name="hours" placeholder="Hrs" min="0" max="23" style="width: 50px;">
-                        <input type="number" name="minutes" placeholder="Min" min="0" max="59" style="width: 50px;">
-                        <button type="submit" class="btn-update">Update Time</button>
-                    </form>
-                    <a href="{{ url_for('delete_user', user_id=user.id) }}" onclick="return confirm('Are you sure you want to delete this user?')">
-                        <button type="button" class="btn-danger">Delete</button>
-                    </a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
+        <div class="card">
+            <h2>
+                <span class="icon"><i class="fas fa-users"></i></span>
+                Existing Users
+                <span class="user-count">{{ users|length }} users</span>
+            </h2>
+            
+            {% if users %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Status</th>
+                            <th>Expires In</th>
+                            <th>Admin</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>
+                                <strong style="color: #333; font-size: 15px;">
+                                    <i class="fas fa-user" style="color: #667eea; margin-right: 8px;"></i>
+                                    {{ user.username }}
+                                </strong>
+                            </td>
+                            <td>
+                                {% if user.expiration_time and user.expiration_time < current_time %}
+                                    <span class="status-badge status-expired">Expired</span>
+                                {% else %}
+                                    <span class="status-badge status-active">Active</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.expiration_time %}
+                                    {% set time_remaining = user.expiration_time - current_time %}
+                                    {% if time_remaining.total_seconds() > 0 %}
+                                        {% set days = time_remaining.days %}
+                                        {% set hours = (time_remaining.seconds // 3600) %}
+                                        {% set minutes = (time_remaining.seconds % 3600) // 60 %}
+                                        <span style="font-weight: 600; color: #333;">
+                                            {% if days > 0 %}{{ days }}d {% endif %}{% if hours > 0 %}{{ hours }}h {% endif %}{{ minutes }}m
+                                        </span>
+                                    {% else %}
+                                        <span class="status-badge status-expired">Expired</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="no-expiration">No Expiration</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="admin-badge {{ 'yes' if user.is_admin else 'no' }}">
+                                    <i class="fas {{ 'fa-crown' if user.is_admin else 'fa-user' }}"></i>
+                                    {{ 'Yes' if user.is_admin else 'No' }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if not user.is_admin %}
+                                <form method="POST" action="{{ url_for('update_user', user_id=user.id) }}" class="action-form">
+                                    <input type="number" name="days" placeholder="D" min="0" title="Days">
+                                    <input type="number" name="hours" placeholder="H" min="0" max="23" title="Hours">
+                                    <input type="number" name="minutes" placeholder="M" min="0" max="59" title="Minutes">
+                                    <button type="submit" class="btn-update">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </form>
+                                <a href="{{ url_for('delete_user', user_id=user.id) }}" onclick="return confirm('Are you sure you want to delete this user?')" style="text-decoration: none;">
+                                    <button type="button" class="btn-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-users-slash"></i>
+                <p>No users found. Create your first user above!</p>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </body>
 </html>
