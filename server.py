@@ -12,6 +12,8 @@ from PIL import Image
 from io import BytesIO
 import win32clipboard
 from datetime import datetime, timedelta
+import threading
+import json
 app = Flask(__name__)
 
 # Helper function for clipboard operations
@@ -39,7 +41,20 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     expiration_time = db.Column(db.DateTime, nullable=True)
-    is_admin = db.Column(db.Boolean, default=False)  # New column for admin flag
+    is_admin = db.Column(db.Boolean, default=False)
+
+# Message Session model to store message sending summaries
+class MessageSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    username = db.Column(db.String(80), nullable=False)
+    total_contacts = db.Column(db.Integer, default=0)
+    messages_sent = db.Column(db.Integer, default=0)
+    last_recipient = db.Column(db.String(80), nullable=True)
+    session_date = db.Column(db.DateTime, default=datetime.utcnow)
+    logout_time = db.Column(db.DateTime, nullable=True)
+    
+    user = db.relationship('User', backref='message_sessions')
 
 # Create the database
 with app.app_context():
@@ -70,9 +85,9 @@ def login():
         if user.expiration_time and user.expiration_time < datetime.utcnow():
             return render_template('login.html', error='Your credentials have expired. Please contact the admin.')
         session['username'] = user.username
-        session['login_time'] = datetime.utcnow().isoformat()  # Store login time
-        # Store expiration time for the timer (only for non-admin users)
-        # Append 'Z' to indicate UTC timezone
+        session['user_id'] = user.id
+        session['login_time'] = datetime.utcnow().isoformat()
+        
         if user.expiration_time and not user.is_admin:
             session['expiration_time'] = user.expiration_time.isoformat() + 'Z'
         else:
@@ -112,10 +127,11 @@ def admin_dashboard():
     users = User.query.all()
     current_time = datetime.utcnow()
     
-    # Calculate stats
     total_users = len(users)
     active_users = sum(1 for u in users if u.expiration_time and u.expiration_time > current_time)
     expired_users = total_users - active_users
+    
+    message_sessions = MessageSession.query.order_by(MessageSession.session_date.desc()).limit(50).all()
     
     user = User.query.filter_by(username=session['username']).first()
     expiration_time = None
@@ -123,12 +139,12 @@ def admin_dashboard():
     if user:
         is_admin = user.is_admin
         if user.expiration_time and not user.is_admin:
-            # Append 'Z' to indicate UTC timezone
             expiration_time = user.expiration_time.isoformat() + 'Z'
     
     return render_template('admin.html', users=users, current_time=current_time, 
                           total_users=total_users, active_users=active_users, expired_users=expired_users,
-                          login_time=session.get('login_time'), expiration_time=expiration_time, is_admin=is_admin)
+                          login_time=session.get('login_time'), expiration_time=expiration_time, is_admin=is_admin,
+                          message_sessions=message_sessions)
 
 @app.route('/admin/delete/<int:user_id>')
 def delete_user(user_id):
@@ -147,6 +163,24 @@ def delete_user(user_id):
     
     return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/delete_session/<int:session_id>')
+def delete_message_session(session_id):
+    """Delete a specific message session"""
+    if 'username' not in session:
+        return redirect(url_for('home'))
+    
+    admin_user = User.query.filter_by(username=session['username']).first()
+    if not admin_user or not admin_user.is_admin:
+        return redirect(url_for('home'))
+    
+    msg_session = MessageSession.query.get(session_id)
+    if msg_session:
+        db.session.delete(msg_session)
+        db.session.commit()
+        flash('Message session deleted successfully!', 'success')
+    
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/api/expiration')
 def get_expiration_time():
     if 'username' not in session:
@@ -160,7 +194,6 @@ def get_expiration_time():
         return jsonify({'expiration_time': None})
     
     if user.expiration_time:
-        # Append 'Z' to indicate UTC timezone
         return jsonify({
             'expiration_time': user.expiration_time.isoformat() + 'Z',
             'is_expired': user.expiration_time < datetime.utcnow()
@@ -200,7 +233,6 @@ def update_user(user_id):
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
-    # Check expiration first
     is_valid, error_msg = check_expiration()
     if not is_valid:
         if 'username' in session:
@@ -238,7 +270,6 @@ def upload_file():
     if user:
         is_admin = user.is_admin
         if user.expiration_time and not user.is_admin:
-            # Append 'Z' to indicate UTC timezone
             expiration_time = user.expiration_time.isoformat() + 'Z'
     
     return render_template('upload.html', login_time=session.get('login_time'), expiration_time=expiration_time, is_admin=is_admin)
@@ -246,12 +277,60 @@ def upload_file():
 # Global variable to track message-sending state
 is_sending_messages = False
 
+# Current message session being tracked
+current_session_data = {
+    'user_id': None,
+    'username': None,
+    'total_contacts': 0,
+    'messages_sent': 0,
+    'last_recipient': '',
+    'recipients_list': []
+}
+
+def save_message_session_to_db(session_data):
+    """Save message session data to database"""
+    try:
+        msg_session = MessageSession(
+            user_id=session_data.get('user_id'),
+            username=session_data.get('username'),
+            total_contacts=session_data.get('total_contacts', 0),
+            messages_sent=session_data.get('messages_sent', 0),
+            last_recipient=session_data.get('last_recipient', ''),
+            session_date=datetime.utcnow(),
+            logout_time=datetime.utcnow()
+        )
+        db.session.add(msg_session)
+        db.session.commit()
+        print(f"Message session saved: {session_data.get('messages_sent')} messages sent")
+    except Exception as e:
+        print(f"Error saving message session: {str(e)}")
+        db.session.rollback()
+
 @app.route('/logout')
 def logout():
-    global is_sending_messages
+    global is_sending_messages, current_session_data
+    
+    session_data = current_session_data.copy()
+    
+    if session_data.get('messages_sent', 0) > 0:
+        save_message_session_to_db(session_data)
+    
     session.pop('username', None)
+    session.pop('user_id', None)
     session.pop('file_path', None)
-    is_sending_messages = False  # Stop sending messages
+    session.pop('image_path', None)
+    session.pop('bulk_message', None)
+    
+    current_session_data = {
+        'user_id': None,
+        'username': None,
+        'total_contacts': 0,
+        'messages_sent': 0,
+        'last_recipient': '',
+        'recipients_list': []
+    }
+    
+    is_sending_messages = False
     return redirect(url_for('home'))
 
 def check_expiration():
@@ -271,11 +350,27 @@ def check_expiration():
     
     return True, None
 
+def check_expiration_during_sending():
+    """Check if session expired during message sending - returns True if expired"""
+    if 'username' not in session:
+        return True
+    
+    user = User.query.filter_by(username=session['username']).first()
+    if not user:
+        return True
+    
+    if user.is_admin:
+        return False
+    
+    if user.expiration_time and user.expiration_time < datetime.utcnow():
+        return True
+    
+    return False
+
 @app.route('/send', methods=['GET', 'POST'])
 def send_message():
-    global is_sending_messages
+    global is_sending_messages, current_session_data
     
-    # Check expiration FIRST on every request
     is_valid, error_msg = check_expiration()
     if not is_valid:
         if 'username' in session:
@@ -293,7 +388,6 @@ def send_message():
         file_path = session['file_path']
         image_path = session.get('image_path')
 
-        # URL-encode the message for large messages - THIS IS THE KEY FIX!
         try:
             encoded_message = urllib.parse.quote(message)
         except Exception:
@@ -305,21 +399,32 @@ def send_message():
         try:
             df = pd.read_excel(file_path)
             numbers = [str(ele).strip() for ele in df.iloc[:, 6] if len(str(ele)) > 5]
-            # Store message in session for pyautogui to use
             session['bulk_message'] = message
 
             is_sending_messages = True
-            first_message = True
             num_count = len(numbers)
             
-            # If no image, use URL-encoded message in URL (like working code)
+            current_session_data['user_id'] = session.get('user_id')
+            current_session_data['username'] = session.get('username')
+            current_session_data['total_contacts'] = num_count
+            current_session_data['messages_sent'] = 0
+            current_session_data['last_recipient'] = ''
+            current_session_data['recipients_list'] = []
+            
             if image_path == "":
                 for i, number in enumerate(numbers[:3000]):
-                    if not is_sending_messages:  # Stop if the user logs out
+                    # Check if session expired during sending
+                    if check_expiration_during_sending():
+                        is_sending_messages = False
+                        # Save partial session data before logout
+                        if current_session_data.get('messages_sent', 0) > 0:
+                            save_message_session_to_db(current_session_data)
+                        return render_template('send.html', error='Session expired. Message sending stopped.')
+                    
+                    if not is_sending_messages:
                         return render_template('send.html', error='Message sending stopped.')
 
                     if i == 0:
-                        # First message - open WhatsApp Web
                         webbrowser.open("https://web.whatsapp.com")
                         time.sleep(30)
                         gui.keyDown('ctrl')
@@ -327,26 +432,27 @@ def send_message():
                         gui.keyUp('ctrl')
                         time.sleep(8)
                     
-                    # Use URL-encoded message in URL - THIS IS THE KEY FIX FOR LARGE MESSAGES!
                     url = "https://web.whatsapp.com/send?phone={}&text={}&source&data&app_absent".format(number, encoded_message)
                     webbrowser.open(url)
                     time.sleep(50)
                     gui.press('enter')
                     time.sleep(3)
                     
-                    # Close tab and open new chat
+                    current_session_data['recipients_list'].append(number)
+                    current_session_data['messages_sent'] += 1
+                    current_session_data['last_recipient'] = number
+                    
                     gui.keyDown('ctrl')
                     gui.press('w')
                     gui.keyUp('ctrl')
                     time.sleep(1)
                     gui.press('enter')
                     
-                    if i == num_count - 1:  # Last element
+                    if i == num_count - 1:
                         time.sleep(2)
                     else:
                         time.sleep(8)
             else:
-                # With image - use clipboard for image, but still use URL-encoded message
                 image_success = True
                 filepath = image_path
                 try:
@@ -360,11 +466,17 @@ def send_message():
                     return render_template('send.html', error='Not suitable attachment')
 
                 for i, number in enumerate(numbers[:3000]):
-                    if not is_sending_messages:  # Stop if the user logs out
+                    # Check if session expired during sending
+                    if check_expiration_during_sending():
+                        is_sending_messages = False
+                        if current_session_data.get('messages_sent', 0) > 0:
+                            save_message_session_to_db(current_session_data)
+                        return render_template('send.html', error='Session expired. Message sending stopped.')
+                    
+                    if not is_sending_messages:
                         return render_template('send.html', error='Message sending stopped.')
 
                     if i == 0:
-                        # First message - open WhatsApp Web
                         webbrowser.open("https://web.whatsapp.com")
                         time.sleep(35)
                         gui.keyDown('ctrl')
@@ -372,12 +484,10 @@ def send_message():
                         gui.keyUp('ctrl')
                         time.sleep(8)
                     
-                    # Use URL-encoded message in URL
                     url = "https://web.whatsapp.com/send?phone={}&text={}&source&data&app_absent".format(number, encoded_message)
                     webbrowser.open(url)
                     time.sleep(60)
                     
-                    # Paste image from clipboard
                     gui.keyDown('ctrl')
                     gui.press('v')
                     gui.keyUp('ctrl')
@@ -385,20 +495,25 @@ def send_message():
                     gui.press('enter')
                     time.sleep(3)
                     
-                    # Close tab and open new chat
+                    current_session_data['recipients_list'].append(number)
+                    current_session_data['messages_sent'] += 1
+                    current_session_data['last_recipient'] = number
+                    
                     gui.keyDown('ctrl')
                     gui.press('w')
                     gui.keyUp('ctrl')
                     time.sleep(1)
                     gui.press('enter')
                     
-                    if i == num_count - 1:  # Last element
+                    if i == num_count - 1:
                         time.sleep(2)
                     else:
                         time.sleep(8)
 
             is_sending_messages = False
-            return render_template('send.html', success='Messages sent successfully!')
+            
+            success_msg = f"Messages sent successfully! Total: {current_session_data['messages_sent']} out of {current_session_data['total_contacts']} contacts. Last recipient: {current_session_data['last_recipient']}"
+            return render_template('send.html', success=success_msg)
 
         except Exception as e:
             is_sending_messages = False
@@ -410,7 +525,6 @@ def send_message():
     if user:
         is_admin = user.is_admin
         if user.expiration_time and not user.is_admin:
-            # Append 'Z' to indicate UTC timezone
             expiration_time = user.expiration_time.isoformat() + 'Z'
     
     return render_template('send.html', login_time=session.get('login_time'), expiration_time=expiration_time, is_admin=is_admin)
