@@ -12,8 +12,14 @@ from PIL import Image
 from io import BytesIO
 import win32clipboard
 from datetime import datetime, timedelta
-
 app = Flask(__name__)
+
+# Helper function for clipboard operations
+def send_to_clipboard(clip_type, data):
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(clip_type, data)
+    win32clipboard.CloseClipboard()
 
 # Configure the app
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
@@ -194,8 +200,14 @@ def update_user(user_id):
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
-    if 'username' not in session:
-        return redirect(url_for('home'))
+    # Check expiration first
+    is_valid, error_msg = check_expiration()
+    if not is_valid:
+        if 'username' in session:
+            session.pop('username', None)
+        session.pop('file_path', None)
+        session.pop('image_path', None)
+        return render_template('upload.html', error='Your credentials have expired. Please log in again.')
 
     if request.method == 'POST':
         if 'file' not in request.files or 'image' not in request.files:
@@ -242,76 +254,148 @@ def logout():
     is_sending_messages = False  # Stop sending messages
     return redirect(url_for('home'))
 
+def check_expiration():
+    """Check if user's credentials have expired"""
+    if 'username' not in session:
+        return False, 'Not logged in'
+    
+    user = User.query.filter_by(username=session['username']).first()
+    if not user:
+        return False, 'User not found'
+    
+    if user.is_admin:
+        return True, None
+    
+    if user.expiration_time and user.expiration_time < datetime.utcnow():
+        return False, 'Credentials expired'
+    
+    return True, None
+
 @app.route('/send', methods=['GET', 'POST'])
 def send_message():
     global is_sending_messages
-    if 'username' not in session or 'file_path' not in session:
-        return redirect(url_for('home'))
-
-    user = User.query.filter_by(username=session['username']).first()
-    if not user or (user.expiration_time and user.expiration_time < datetime.utcnow()):
-        session.pop('username', None)
+    
+    # Check expiration FIRST on every request
+    is_valid, error_msg = check_expiration()
+    if not is_valid:
+        if 'username' in session:
+            session.pop('username', None)
         session.pop('file_path', None)
+        session.pop('image_path', None)
         is_sending_messages = False
-        return render_template('send.html', error='Your session has expired. Please log in again.')
+        return render_template('send.html', error='Your credentials have expired. Please log in again.')
+    
+    if 'file_path' not in session:
+        return redirect(url_for('home'))
 
     if request.method == 'POST':
         message = request.form['message']
         file_path = session['file_path']
         image_path = session.get('image_path')
 
+        # URL-encode the message for large messages - THIS IS THE KEY FIX!
+        try:
+            encoded_message = urllib.parse.quote(message)
+        except Exception:
+            return render_template('send.html', error='Given Message is not supported! No emojis please!')
+
+        if encoded_message == "" and image_path == "":
+            return render_template('send.html', error='Please type or attach a message')
+
         try:
             df = pd.read_excel(file_path)
             numbers = [str(ele).strip() for ele in df.iloc[:, 6] if len(str(ele)) > 5]
-            msg = urllib.parse.quote(message)
+            # Store message in session for pyautogui to use
+            session['bulk_message'] = message
 
             is_sending_messages = True
             first_message = True
-            for i, number in enumerate(numbers[:3000]):
-                if not is_sending_messages:  # Stop if the user logs out
-                    return render_template('send.html', error='Message sending stopped.')
+            num_count = len(numbers)
+            
+            # If no image, use URL-encoded message in URL (like working code)
+            if image_path == "":
+                for i, number in enumerate(numbers[:3000]):
+                    if not is_sending_messages:  # Stop if the user logs out
+                        return render_template('send.html', error='Message sending stopped.')
 
-                url = f"https://web.whatsapp.com/send?phone={number}&text={msg}&source&data&app_absent"
-                
-                if first_message:
-                    webbrowser.open(url)
-                    first_message = False
-                else:
-                    # Navigate to new chat in the same tab using Ctrl+L and Enter
-                    gui.keyDown('ctrl')
-                    gui.press('l')
-                    gui.keyUp('ctrl')
-                    time.sleep(0.5)
-                    gui.typewrite(url)
-                    gui.press('enter')
-                
-                time.sleep(40)  # Wait for WhatsApp Web to load
-
-                if image_path:
-                    try:
-                        image = Image.open(image_path)
-                        output = BytesIO()
-                        image.convert("RGB").save(output, "BMP")
-                        data = output.getvalue()[14:]
-                        output.close()
-                        win32clipboard.OpenClipboard()
-                        win32clipboard.EmptyClipboard()
-                        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
-                        win32clipboard.CloseClipboard()
-
+                    if i == 0:
+                        # First message - open WhatsApp Web
+                        webbrowser.open("https://web.whatsapp.com")
+                        time.sleep(30)
                         gui.keyDown('ctrl')
-                        gui.press('v')
+                        gui.press('w')
                         gui.keyUp('ctrl')
-                        time.sleep(5)  # Ensure image is loaded
-                        gui.press('enter')  # Send the image
-                        time.sleep(5)  # Ensure image is sent before proceeding
-                    except Exception:
-                        return render_template('send.html', error='Failed to attach the image.')
+                        time.sleep(8)
+                    
+                    # Use URL-encoded message in URL - THIS IS THE KEY FIX FOR LARGE MESSAGES!
+                    url = "https://web.whatsapp.com/send?phone={}&text={}&source&data&app_absent".format(number, encoded_message)
+                    webbrowser.open(url)
+                    time.sleep(50)
+                    gui.press('enter')
+                    time.sleep(3)
+                    
+                    # Close tab and open new chat
+                    gui.keyDown('ctrl')
+                    gui.press('w')
+                    gui.keyUp('ctrl')
+                    time.sleep(1)
+                    gui.press('enter')
+                    
+                    if i == num_count - 1:  # Last element
+                        time.sleep(2)
+                    else:
+                        time.sleep(8)
+            else:
+                # With image - use clipboard for image, but still use URL-encoded message
+                image_success = True
+                filepath = image_path
+                try:
+                    image = Image.open(filepath)
+                    output = BytesIO()
+                    image.convert("RGB").save(output, "BMP")
+                    data = output.getvalue()[14:]
+                    output.close()
+                    send_to_clipboard(win32clipboard.CF_DIB, data)
+                except Exception:
+                    return render_template('send.html', error='Not suitable attachment')
 
-                gui.press('enter')  # Send the text message
-                time.sleep(2)
-                gui.press('esc')  # Dismiss any dialogs if present
-                time.sleep(1)  # Wait before opening the next chat
+                for i, number in enumerate(numbers[:3000]):
+                    if not is_sending_messages:  # Stop if the user logs out
+                        return render_template('send.html', error='Message sending stopped.')
+
+                    if i == 0:
+                        # First message - open WhatsApp Web
+                        webbrowser.open("https://web.whatsapp.com")
+                        time.sleep(35)
+                        gui.keyDown('ctrl')
+                        gui.press('w')
+                        gui.keyUp('ctrl')
+                        time.sleep(8)
+                    
+                    # Use URL-encoded message in URL
+                    url = "https://web.whatsapp.com/send?phone={}&text={}&source&data&app_absent".format(number, encoded_message)
+                    webbrowser.open(url)
+                    time.sleep(60)
+                    
+                    # Paste image from clipboard
+                    gui.keyDown('ctrl')
+                    gui.press('v')
+                    gui.keyUp('ctrl')
+                    time.sleep(5)
+                    gui.press('enter')
+                    time.sleep(3)
+                    
+                    # Close tab and open new chat
+                    gui.keyDown('ctrl')
+                    gui.press('w')
+                    gui.keyUp('ctrl')
+                    time.sleep(1)
+                    gui.press('enter')
+                    
+                    if i == num_count - 1:  # Last element
+                        time.sleep(2)
+                    else:
+                        time.sleep(8)
 
             is_sending_messages = False
             return render_template('send.html', success='Messages sent successfully!')

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAT Bulk Messages - Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -251,7 +252,7 @@
         <div class="logo">
             <div class="logo-icon">💬</div>
         </div>
-        <h1>WAT Bulk Messages</h1>
+        <h1>WAT Messages Campaign</h1>
         <p class="subtitle">Send messages to multiple contacts instantly</p>
         
         {% if error %}
@@ -272,7 +273,23 @@
             <button type="submit">Sign In</button>
         </form>
         
+        <div style="margin-top: 20px;">
+            <button onclick="contactAdmin()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <i class="fab fa-whatsapp"></i> Contact Admin for Token Extension
+            </button>
+        </div>
+        
         <p class="footer">Developed by Satyam Singh</p>
     </div>
+    
+    <script>
+        function contactAdmin() {
+            const phoneNumber = '8999472923';
+            const message = 'Hi Admin, please extend my token';
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://web.whatsapp.com/send?phone=${phoneNumber}&text=${encodedMessage}`;
+            window.open(whatsappUrl, '_blank');
+        }
+    </script>
 </body>
 </html>

@@ -337,18 +337,47 @@
                 <span>Your Excel file contains phone numbers. Write your message below and we'll send it to all contacts.</span>
             </div>
             
-            <form method="POST">
-                <div class="form-group">
+            <form id="messageForm" method="POST">
+<div class="form-group">
                     <label>
                         <span class="icon">💬</span>
                         Your Message
                     </label>
                     <textarea id="message" name="message" rows="6" placeholder="Type your message here..." required></textarea>
                     <div class="char-count">Write your bulk message</div>
+                    <button type="button" onclick="formatMessage()" style="margin-top: 10px; padding: 10px 20px; background: #6c5ce7; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; width: auto; display: inline-flex; align-items: center; gap: 8px;">
+                        <span>✨</span> Format Text
+                    </button>
                 </div>
 
                 <button type="submit">Start Sending Messages</button>
             </form>
+            
+            <!-- Sending Panel - Hidden by default -->
+            <div id="sendingPanel" style="display: none; margin-top: 20px;">
+                <div style="background: #d4edda; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <h4 style="color: #155724; margin: 0 0 10px 0;">📋 Contacts Ready to Send</h4>
+                    <p style="color: #155724; margin: 0; font-size: 14px;">Total: <strong id="totalCount">0</strong> contacts</p>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <p style="color: #856404; margin: 0 0 10px 0; font-size: 14px;"><strong>Your Message:</strong></p>
+                    <div id="messagePreview" style="background: white; padding: 10px; border-radius: 5px; font-size: 12px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #ddd;"></div>
+                    <button onclick="copyMessage()" style="margin-top: 10px; padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy Message</button>
+                    <span id="copyStatus" style="color: green; margin-left: 10px; display: none;">Copied!</span>
+                    <p style="color: #856404; margin: 10px 0 0 0; font-size: 12px;"><em>Copy message before sending, then paste in WhatsApp after clicking Send</em></p>
+                </div>
+                
+                <div id="contactsList" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 15px;"></div>
+                
+                <button onclick="sendAllContacts()" style="width: 100%; padding: 15px; background: #25D366; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer;">
+                    📱 Send All via WhatsApp
+                </button>
+                
+                <div id="sendStatus" style="margin-top: 15px; padding: 15px; border-radius: 10px; background: #f8f9fa; color: #666;">
+                    Click "Send All via WhatsApp" to open all chats
+                </div>
+            </div>
             
             <div class="nav-links">
                 <a href="/upload" class="nav-link">← Back to Upload</a>
@@ -362,11 +391,27 @@
         // Store the initial expiration time
         let expirationTime = new Date('{{ expiration_time }}');
         let timerInterval = null;
+        let contacts = [];
+        let currentMessage = '';
+        let sentStatus = {};
+        let isSending = false; // Track if we're in sending mode
         
         // Function to fetch updated expiration time from server
         async function fetchExpirationTime() {
+            // Skip expiration check during sending
+            if (isSending) return;
+            
             try {
                 const response = await fetch('/api/expiration');
+                
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // Not JSON - probably redirected to login
+                    window.location.href = '/logout';
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (data.expiration_time) {
@@ -374,21 +419,32 @@
                     
                     // If expired, redirect to login
                     if (data.is_expired) {
-                        window.location.href = '/?expired=true';
+                        // Force logout and redirect
+                        window.location.href = '/logout';
                     }
+                } else if (data.error) {
+                    // Not logged in or error, logout
+                    window.location.href = '/logout';
                 }
             } catch (error) {
                 console.error('Error fetching expiration time:', error);
+                // On error, logout to be safe
+                window.location.href = '/logout';
             }
         }
         
         function updateTimer() {
+            // Skip timer check during sending
+            if (isSending) return;
+            
             const now = new Date();
             const diff = expirationTime - now;
             
             if (diff <= 0) {
                 document.getElementById('login-duration').textContent = 'Expired';
                 document.getElementById('login-duration').style.background = 'rgba(231, 76, 60, 0.3)';
+                // Force logout when expired
+                window.location.href = '/logout';
                 return;
             }
             
@@ -409,9 +465,264 @@
         setInterval(updateTimer, 1000);
         updateTimer();
         
-        // Poll for updated expiration time every 10 seconds
-        setInterval(fetchExpirationTime, 10000);
+        // Poll for updated expiration time every 5 seconds
+        setInterval(fetchExpirationTime, 5000);
         fetchExpirationTime();
+        
+        // Handle form submission via AJAX for client-side sending
+        document.getElementById('messageForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Skip expiration check during sending
+            isSending = true;
+            
+            const message = document.getElementById('message').value;
+            const formData = new FormData();
+            formData.append('message', message);
+            
+            try {
+                const response = await fetch('/send', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // Not JSON - session expired, redirect to login
+                    window.location.href = '/logout';
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                // Store contacts for client-side sending
+                contacts = data.numbers;
+                currentMessage = message;
+                isSending = true; // Start sending mode
+                
+                // Show the sending panel
+                document.getElementById('sendingPanel').style.display = 'block';
+                document.getElementById('totalCount').textContent = contacts.length;
+                document.getElementById('messagePreview').textContent = message;
+                
+                // Display contacts list
+                displayContacts();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+            }
+        });
+        
+        function displayContacts() {
+            const list = document.getElementById('contactsList');
+            list.innerHTML = '';
+            
+            contacts.forEach((number, index) => {
+                const div = document.createElement('div');
+                div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;';
+                div.innerHTML = `
+                    <span style="font-family: monospace;">${number}</span>
+                    <button onclick="sendToWhatsApp('${number}', ${index})" style="background: #25D366; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer;">
+                        📱 Send
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+        }
+        
+        function sendToWhatsApp(number, index) {
+            // Open WhatsApp Web WITHOUT message in URL - user will copy/paste manually
+            const url = `https://web.whatsapp.com/send?phone=${number}`;
+            window.open(url, '_blank');
+            
+            sentStatus[index] = true;
+            checkAllSent();
+        }
+        
+        function sendAllContacts() {
+            const statusDiv = document.getElementById('sendStatus');
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#cce5ff';
+            statusDiv.style.color = '#004085';
+            statusDiv.innerHTML = 'Opening WhatsApp for all contacts... Please wait.';
+            
+            let opened = 0;
+            const maxOpen = 5; // Limit to avoid browser blocking
+            const totalToOpen = Math.min(contacts.length, maxOpen);
+            
+            contacts.forEach((number, index) => {
+                if (index >= maxOpen) return;
+                
+                setTimeout(() => {
+                    sendToWhatsApp(number, index);
+                    opened++;
+                    
+                    // Check if all opened
+                    if (opened === totalToOpen) {
+                        if (contacts.length > maxOpen) {
+                            statusDiv.innerHTML = `✅ Opened ${maxOpen} WhatsApp tabs. (${contacts.length - maxOpen} more pending). Click again to open more. OR click "Send" button next to each contact to open individually.`;
+                        } else {
+                            statusDiv.innerHTML = '🎉 SUCCESS! All messages have been opened in WhatsApp! Please send each message manually by clicking the Send button in WhatsApp.';
+                        }
+                    }
+                }, index * 2000);
+            });
+        }
+        
+        function checkAllSent() {
+            const sent = Object.values(sentStatus).filter(s => s).length;
+            const statusDiv = document.getElementById('sendStatus');
+            
+            if (sent === contacts.length && contacts.length > 0) {
+                isSending = false; // Done sending
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#d4edda';
+                statusDiv.style.color = '#155724';
+                statusDiv.innerHTML = '🎉 SUCCESS! All messages have been opened in WhatsApp! Please send each message manually by clicking the Send button in WhatsApp.';
+            }
+        }
+        
+function copyMessage() {
+            navigator.clipboard.writeText(currentMessage).then(function() {
+                const status = document.getElementById('copyStatus');
+                status.style.display = 'inline';
+                setTimeout(function() {
+                    status.style.display = 'none';
+                }, 2000);
+            });
+        }
+        
+        // Text formatting function
+        function formatMessage() {
+            let text = document.getElementById('message').value;
+            
+            if (!text.trim()) {
+                alert('Please enter some text to format!');
+                return;
+            }
+            
+            // Clean up the text - replace multiple spaces with single space
+            text = text.replace(/\s+/g, ' ').trim();
+            
+            // Define section patterns to detect
+            const sections = [
+                { name: 'Tech / AI Innovation Ideas', emoji: '🚀', pattern: /Tech\s*\/\s*AI\s*Innovation\s*Ideas/gi },
+                { name: 'Business / Startup Ideas', emoji: '💡', pattern: /Business\s*\/\s*Startup\s*Ideas/gi },
+                { name: 'Tech / AI Ideas', emoji: '🚀', pattern: /Tech\s*\/\s*AI\s*Ideas/gi },
+                { name: 'Business Ideas', emoji: '💡', pattern: /Business\s*Ideas/gi }
+            ];
+            
+            // Check if text contains recognizable sections
+            let hasSections = false;
+            for (let section of sections) {
+                if (section.pattern.test(text)) {
+                    hasSections = true;
+                    break;
+                }
+            }
+            
+            let formattedText = '';
+            
+            if (hasSections) {
+                // Split by section headers
+                let parts = text.split(/(Tech\s*\/\s*AI\s*Innovation\s*Ideas|Business\s*\/\s*Startup\s*Ideas|Tech\s*\/\s*AI\s*Ideas|Business\s*Ideas)/gi);
+                
+                for (let i = 0; i < parts.length; i++) {
+                    let part = parts[i].trim();
+                    if (!part) continue;
+                    
+                    // Check if this part is a section header
+                    let isHeader = false;
+                    let emoji = '';
+                    for (let section of sections) {
+                        if (section.pattern.test(part)) {
+                            isHeader = true;
+                            emoji = section.emoji;
+                            formattedText += '\n' + emoji + ' ' + part + '\n\n';
+                            break;
+                        }
+                    }
+                    
+                    if (!isHeader) {
+                        // This is content - format the items
+                        let items = part.split(/(?<=[.])\s+(?=[A-Z])/);
+                        
+                        for (let item of items) {
+                            item = item.trim();
+                            if (!item) continue;
+                            
+                            // Check if item is a title (short, ends without punctuation)
+                            let isTitle = false;
+                            
+                            // Split title and description
+                            // Titles typically come before description and are shorter
+                            let titleEnd = item.search(/[.?!]\s+/);
+                            
+                            if (titleEnd > 0 && titleEnd < 50) {
+                                // Has a sentence separator
+                                let title = item.substring(0, titleEnd + 1).trim();
+                                let desc = item.substring(titleEnd + 1).trim();
+                                
+                                // Capitalize title properly
+                                title = title.charAt(0).toUpperCase() + title.slice(1);
+                                
+                                // Add dash for description if not present
+                                if (desc && !desc.startsWith('—') && !desc.startsWith('-')) {
+                                    desc = '— ' + desc;
+                                }
+                                
+                                // Add arrow for specific patterns
+                                desc = desc.replace(/\s*→\s*/g, ' → ');
+                                desc = desc.replace(/\s*buy\s*/gi, 'Buy ');
+                                desc = desc.replace(/\s*refurbish\s*/gi, ' → refurbish ');
+                                desc = desc.replace(/\s*sell\s*/gi, ' → sell ');
+                                
+                                formattedText += title + '\n' + desc + '\n\n';
+                            } else {
+                                // Just a single line, capitalize and add newline
+                                item = item.charAt(0).toUpperCase() + item.slice(1);
+                                if (!item.endsWith('.') && !item.endsWith('!') && !item.endsWith('?')) {
+                                    item = item + '.';
+                                }
+                                formattedText += item + '\n\n';
+                            }
+                        }
+                    }
+                }
+            } else {
+                // No recognized sections - just format as bullet points
+                // Split by periods followed by capital letters or common separators
+                let items = text.split(/(?<=[.])\s+(?=[A-Z])|(?<=[,])\s+(?=[A-Z])/);
+                
+                for (let item of items) {
+                    item = item.trim();
+                    if (!item) continue;
+                    
+                    // Capitalize first letter
+                    item = item.charAt(0).toUpperCase() + item.slice(1);
+                    
+                    // Add period if missing
+                    if (!item.endsWith('.') && !item.endsWith('!') && !item.endsWith('?')) {
+                        item = item + '.';
+                    }
+                    
+                    formattedText += '• ' + item + '\n\n';
+                }
+            }
+            
+            // Clean up extra newlines at the start
+            formattedText = formattedText.replace(/^\n+/, '');
+            
+            // Update the textarea
+            document.getElementById('message').value = formattedText;
+        }
     </script>
     {% endif %}
     
